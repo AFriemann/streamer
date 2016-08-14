@@ -29,6 +29,7 @@ class watchseries(Collector):
 
     def search(self, season):
         result = self.session.get(web.urljoin(self.root, 'search', season))
+        result.encoding = 'utf-8'
 
         tree = html.fromstring(result.text)
 
@@ -36,12 +37,13 @@ class watchseries(Collector):
             relative = a.xpath("@href")[0]
             absolute = web.urljoin(self.root, relative)
             name     = a.xpath("normalize-space()")
-            yield str(name), str(absolute)
+            yield str(name).strip(), str(absolute).strip()
 
     def seasons(self, link):
         assert link.startswith(self.root), 'this link does not belong here: %s' % link
 
         result = self.session.get(web.urljoin(link, 'sab'))
+        result.encoding = 'utf-8'
 
         tree = html.fromstring(result.text)
 
@@ -50,12 +52,13 @@ class watchseries(Collector):
             name     = a.xpath("normalize-space()")
             number   = name.split()[1]
 
-            yield str(number), str(absolute)
+            yield int(number), str(absolute).strip()
 
     def episodes(self, link):
         assert link.startswith(self.root), 'this link does not belong here: %s' % link
 
         result = self.session.get(link)
+        result.encoding = 'utf-8'
 
         tree = html.fromstring(result.text)
 
@@ -66,12 +69,13 @@ class watchseries(Collector):
             absolute = web.urljoin(self.root, relative)
             name     = ' '.join(a.xpath("span[contains(@itemprop, 'name')]/text()")[0].split()[2:])
 
-            yield int(number), str(name), str(absolute)
+            yield int(number), str(name).strip(), str(absolute).strip()
 
     def providers(self, link):
         assert link.startswith(self.root), 'this link does not belong here: %s' % link
 
         result = self.session.get(link)
+        result.encoding = 'utf-8'
 
         tree = html.fromstring(result.text)
 
@@ -82,7 +86,7 @@ class watchseries(Collector):
             relative = a.xpath("@href")[0]
             absolute = web.urljoin(self.root, relative)
 
-            yield str(provider), str(self._resolve_provider_(absolute))
+            yield str(provider).strip(), str(self._resolve_provider_(absolute)).strip()
 
     def _resolve_provider_(self, link):
         assert link.startswith(self.root), 'this link does not belong here: %s' % link

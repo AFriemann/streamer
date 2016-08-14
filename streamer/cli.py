@@ -9,23 +9,27 @@
 
 """
 
-import importlib, sys, os, logging
+import importlib, sys, os, logging, pkgutil
 import click, tabulate as t
 
-from .collectors import Collector
-from . import user
+from . import collectors, user
 
-pass_collector = click.make_pass_decorator(Collector)
+pass_collector   = click.make_pass_decorator(collectors.Collector)
+valid_collectors = [ foo for _, foo, _ in pkgutil.iter_modules([os.path.dirname(collectors.__file__)]) ]
 
-@click.group()
-@click.option('-p', '--collector', default='watchseries')
+@click.group(context_settings={'help_option_names': ['-h', '--help']})
+@click.option('-p', '--collector', default='watchseries', type=click.Choice(valid_collectors))
 @click.option('-d', '--debug/--no-debug', default=False)
 @click.pass_context
 def main(ctx, collector, debug):
     logging.basicConfig(level=logging.DEBUG if debug else logging.WARNING)
 
-    module = importlib.import_module('.collectors.%s' % (collector), package=__package__)
+    module  = importlib.import_module('.collectors.%s' % (collector), package=__package__)
     ctx.obj = getattr(module, collector)()
+
+@main.command()
+def noop():
+    pass
 
 @main.command()
 @click.argument('series')
@@ -39,7 +43,7 @@ def search(collector, series):
 @click.argument('series')
 @pass_collector
 def seasons(collector, series):
-    name, link = user.choose_one_of(list(collector.search(series)))
+    name, link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
     results = collector.seasons(link)
 
@@ -50,10 +54,10 @@ def seasons(collector, series):
 @click.argument('season', default=-1, type=int)
 @pass_collector
 def episodes(collector, series, season):
-    series_name, series_link = user.choose_one_of(list(collector.search(series)))
+    series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
-    seasons = list(map(lambda x: x[1:], sorted(list(collector.seasons(series_link)))))
-    season_link, = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
+    seasons = sorted(list(collector.seasons(series_link)))
+    season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
 
     episodes = list(collector.episodes(season_link))
 
@@ -65,15 +69,13 @@ def episodes(collector, series, season):
 @click.argument('episode', default=-1, type=int)
 @pass_collector
 def episode(collector, series, season, episode):
-    series_name, series_link = user.choose_one_of(list(collector.search(series)))
+    series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
-    seasons = list(map(lambda x: x[1:], sorted(list(collector.seasons(series_link)))))
-    season_link, = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
+    seasons = sorted(list(collector.seasons(series_link)))
+    season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
 
-    print(season_link)
-
-    episodes = list(map(lambda x: x[1:], sorted(list(collector.episodes(season_link)))))
-    episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
+    episodes = sorted(list(collector.episodes(season_link)))
+    episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
 
     providers = collector.providers(episode_link)
 

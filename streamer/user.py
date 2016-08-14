@@ -9,7 +9,7 @@
 
 """
 
-import collections, itertools
+import collections, itertools, sys
 import tabulate as t
 
 try:
@@ -17,17 +17,27 @@ try:
 except NameError:
     basestring = str
 
-def choose_one_of(lst):
-    enumerated_lst = list(map(lambda i, x: (i,) + x, range(1, len(lst) + 1), lst))
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
 
-    print(t.tabulate(enumerated_lst))
+def choose_one_of(lst, enumerate=False):
+    if not enumerate: enumerated_lst = lst
+    else: enumerated_lst = list(map(lambda i, x: (i,) + x, range(1, len(lst) + 1), lst))
 
-    allowed_values = list(range(1, len(lst) + 1))
+    assert len(enumerated_lst) > 0
+    assert type(enumerated_lst[0][0]) is int
+
+    sys.stderr.write(t.tabulate(enumerated_lst) + '\n')
+    sys.stderr.flush()
+
+    allowed_values = [ content[0] for content in enumerated_lst ]
 
     number = None
     while number not in allowed_values:
         try:
-            number = int(input('choose: '))
+            sys.stderr.write('choose: ')
+            number = int(input())
+            sys.stderr.flush()
             assert number in allowed_values
         except (AssertionError, ValueError): print('must be one of %s' % allowed_values)
 
