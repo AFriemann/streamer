@@ -14,6 +14,8 @@ import click, tabulate as t
 
 from . import collectors, user
 
+logger = logging.getLogger(__name__)
+
 pass_collector   = click.make_pass_decorator(collectors.Collector)
 valid_collectors = [ foo for _, foo, _ in pkgutil.iter_modules([os.path.dirname(collectors.__file__)]) ]
 
@@ -28,40 +30,46 @@ def main(ctx, collector, debug):
     ctx.obj = getattr(module, collector)()
 
 @main.command()
-def noop():
-    pass
-
-@main.command()
 @click.argument('series')
 @pass_collector
 def search(collector, series):
-    results = list(collector.search(series))
+    try:
+        results = list(collector.search(series))
 
-    print(t.tabulate(results))
+        print(t.tabulate(results))
+    except AssertionError as e:
+        logger.error(e)
 
 @main.command()
 @click.argument('series')
 @pass_collector
 def seasons(collector, series):
-    name, link = user.choose_one_of(list(collector.search(series)), enumerate=True)
+    try:
+        name, link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
-    results = collector.seasons(link)
+        results = collector.seasons(link)
 
-    print(t.tabulate(list(results)))
+        print(t.tabulate(list(results)))
+    except AssertionError as e:
+        logger.error(e)
 
 @main.command()
 @click.argument('series')
 @click.argument('season', default=-1, type=int)
 @pass_collector
 def episodes(collector, series, season):
-    series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
+    try:
+        series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
-    seasons = sorted(list(collector.seasons(series_link)))
-    season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
+        seasons = sorted(list(collector.seasons(series_link)))
+        assert len(seasons) >= season, 'season %s could not be found' % season
+        season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
 
-    episodes = list(collector.episodes(season_link))
+        episodes = list(collector.episodes(season_link))
 
-    print(t.tabulate(sorted(episodes)))
+        print(t.tabulate(sorted(episodes)))
+    except AssertionError as e:
+        logger.error(e)
 
 @main.command()
 @click.argument('series')
@@ -69,17 +77,22 @@ def episodes(collector, series, season):
 @click.argument('episode', default=-1, type=int)
 @pass_collector
 def episode(collector, series, season, episode):
-    series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
+    try:
+        series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
-    seasons = sorted(list(collector.seasons(series_link)))
-    season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
+        seasons = sorted(list(collector.seasons(series_link)))
+        assert len(seasons) >= season, 'season %s could not be found' % season
+        season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
 
-    episodes = sorted(list(collector.episodes(season_link)))
-    episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
+        episodes = sorted(list(collector.episodes(season_link)))
+        assert len(episodes) >= episode, 'episode %s could not be found' % episode
+        episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
 
-    providers = collector.providers(episode_link)
+        providers = collector.providers(episode_link)
 
-    print(t.tabulate(sorted(providers)))
+        print(t.tabulate(sorted(providers)))
+    except AssertionError as e:
+        logger.error(e)
 
 if __name__ == '__main__':
     exit(main())
