@@ -49,6 +49,7 @@ def choose_one_of(lst, enumerate=False):
 
     assert len(result) == 1, 'found several values with the same number: %s' % result
 
-    return result[0][1:]
+    if enumerate: return result[0][1:]
+    else: return result[0]
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4 fenc=utf-8
