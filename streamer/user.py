@@ -27,10 +27,10 @@ def choose_one_of(lst, enumerate=False):
     assert len(enumerated_lst) > 0, 'received empty list.'
     assert type(enumerated_lst[0][0]) is int, 'first element in sublist must be an integer.'
 
+    if len(enumerated_lst) == 1: return lst[0]
+
     sys.stderr.write(t.tabulate(enumerated_lst) + '\n')
     sys.stderr.flush()
-
-    if len(enumerated_lst) == 1: return lst[0]
 
     allowed_values = [ content[0] for content in enumerated_lst ]
 

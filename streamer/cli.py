@@ -9,29 +9,29 @@
 
 """
 
-import importlib, sys, os, logging, pkgutil
-import click, tabulate as t
+import importlib, sys, os, logging, pkgutil, click
 
-from . import collectors, user
+from . import collectors, user, data
 
 logger = logging.getLogger(__name__)
 
-def kv_pair(string):
-    key, value = string.split('=')
-    return { key: value }
-
 pass_collector   = click.make_pass_decorator(collectors.Collector)
+
 valid_collectors = [ foo for _, foo, _ in pkgutil.iter_modules([os.path.dirname(collectors.__file__)]) ]
+valid_formats    = data.table_formats
 
 @click.group(context_settings={'help_option_names': ['-h', '--help']})
 @click.option('-p', '--collector', default='watchseries', type=click.Choice(valid_collectors))
+@click.option('-f', '--format', default='simple', type=click.Choice(valid_formats))
 @click.option('-d', '--debug/--no-debug', default=False)
 @click.pass_context
-def main(ctx, collector, debug):
+def main(ctx, collector, format, debug):
     logging.basicConfig(level=logging.DEBUG if debug else logging.WARNING)
 
     module  = importlib.import_module('.collectors.%s' % (collector), package=__package__)
     ctx.obj = getattr(module, collector)()
+
+    data.table_format = format
 
 @main.command()
 @click.argument('series')
@@ -40,7 +40,7 @@ def search(collector, series):
     try:
         results = list(collector.search(series))
 
-        print(t.tabulate(results))
+        data.print_table(results)
     except AssertionError as e:
         logger.error(e)
 
@@ -53,7 +53,7 @@ def seasons(collector, series):
 
         results = collector.seasons(link)
 
-        print(t.tabulate(list(results)))
+        data.print_table(list(results))
     except AssertionError as e:
         logger.error(e)
 
@@ -71,7 +71,7 @@ def episodes(collector, series, season):
 
         episodes = list(collector.episodes(season_link))
 
-        print(t.tabulate(sorted(episodes)))
+        data.print_table(sorted(episodes))
     except AssertionError as e:
         logger.error(e)
 
@@ -100,7 +100,7 @@ def episode(collector, whitelist, blacklist, series, season, episode):
             )
         )
 
-        print(t.tabulate(sorted(providers)))
+        data.print_table(sorted(providers))
     except AssertionError as e:
         logger.error(e)
 
