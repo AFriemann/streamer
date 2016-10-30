@@ -16,6 +16,10 @@ from . import collectors, user
 
 logger = logging.getLogger(__name__)
 
+def kv_pair(string):
+    key, value = string.split('=')
+    return { key: value }
+
 pass_collector   = click.make_pass_decorator(collectors.Collector)
 valid_collectors = [ foo for _, foo, _ in pkgutil.iter_modules([os.path.dirname(collectors.__file__)]) ]
 
@@ -72,11 +76,13 @@ def episodes(collector, series, season):
         logger.error(e)
 
 @main.command()
+@click.option('--whitelist', '-w', multiple=True)
+@click.option('--blacklist', '-b', multiple=True)
 @click.argument('series')
 @click.argument('season', default=-1, type=int)
 @click.argument('episode', default=-1, type=int)
 @pass_collector
-def episode(collector, series, season, episode):
+def episode(collector, whitelist, blacklist, series, season, episode):
     try:
         series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
@@ -88,7 +94,11 @@ def episode(collector, series, season, episode):
         assert len(episodes) >= episode, 'episode %s could not be found' % episode
         episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
 
-        providers = collector.providers(episode_link)
+        providers = filter(lambda x: not blacklist or x[0] not in blacklist,
+            filter(lambda x: not whitelist or x[0] in whitelist,
+                collector.providers(episode_link)
+            )
+        )
 
         print(t.tabulate(sorted(providers)))
     except AssertionError as e:

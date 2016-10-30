@@ -9,7 +9,7 @@
 
 """
 
-import logging, base64
+import logging, base64, re
 
 try: import urllib.parse as urlparse
 except ImportError: import urlparse
@@ -27,6 +27,15 @@ class watchseries(Collector):
         self.root    = 'http://watch-series.to'
         self.session = requests.session()
 
+        self.regex = re.compile(r'http(s)?://(the-)?watch-series.to')
+
+    def assert_match(self, link):
+        if web.absolute(link):
+            assert self.matches(link), 'this link does not belong here: %s' % link
+
+    def matches(self, link):
+        return self.regex.match(link)
+
     def search(self, season):
         result = self.session.get(web.urljoin(self.root, 'search', season))
         result.encoding = 'utf-8'
@@ -40,7 +49,7 @@ class watchseries(Collector):
             yield str(name).strip(), str(absolute).strip()
 
     def seasons(self, link):
-        assert link.startswith(self.root), 'this link does not belong here: %s' % link
+        self.assert_match(link)
 
         result = self.session.get(web.urljoin(link, 'sab'))
         result.encoding = 'utf-8'
@@ -55,7 +64,10 @@ class watchseries(Collector):
             yield int(number), str(absolute).strip()
 
     def episodes(self, link):
-        assert link.startswith(self.root), 'this link does not belong here: %s' % link
+        self.assert_match(link)
+
+        if not web.absolute(link):
+            link = web.urljoin(self.root, link)
 
         result = self.session.get(link)
         result.encoding = 'utf-8'
@@ -72,7 +84,7 @@ class watchseries(Collector):
             yield int(number), str(name).strip(), str(absolute).strip()
 
     def providers(self, link):
-        assert link.startswith(self.root), 'this link does not belong here: %s' % link
+        self.assert_match(link)
 
         result = self.session.get(link)
         result.encoding = 'utf-8'
@@ -89,7 +101,7 @@ class watchseries(Collector):
             yield str(provider).strip(), str(self._resolve_provider_(absolute)).strip()
 
     def _resolve_provider_(self, link):
-        assert link.startswith(self.root), 'this link does not belong here: %s' % link
+        self.assert_match(link)
 
         return base64.b64decode(link.split('?r=')[1]).decode()
 
