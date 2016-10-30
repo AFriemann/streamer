@@ -9,7 +9,7 @@
 
 """
 
-import importlib, sys, os, logging, pkgutil, click
+import importlib, sys, os, logging, pkgutil, click, time
 
 from streamer import collectors, user, data, config, storage
 
@@ -27,7 +27,8 @@ valid_formats    = data.table_formats
 @click.option('-d', '--debug/--no-debug', default=False)
 @click.pass_context
 def main(ctx, cfg, collector, format, debug):
-    logging.basicConfig(level=logging.DEBUG if debug else logging.WARNING)
+    logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
+    if not debug: logging.getLogger('requests').setLevel(logging.WARNING)
 
     module  = importlib.import_module('.collectors.{}'.format(collector), package=__package__)
     ctx.obj = getattr(module, collector)()
@@ -83,27 +84,11 @@ def episode(collector, whitelist, blacklist, series, season, episode):
         whitelist = set(whitelist).union(set(cfg.get('whitelist') or []))
         blacklist = set(blacklist).union(set(cfg.get('blacklist') or []))
 
-        providers = collector.providers(series, season, episode, whitelist, blacklist)
+        providers = sorted(collector.providers(series, season, episode, whitelist, blacklist))
 
+        assert len(providers) > 0, 'no providers found with current settings'
 
-        #
-        # series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
-        #
-        # seasons = sorted(list(collector.seasons(series_link)))
-        # assert len(seasons) >= season, 'season {} could not be found'.format(season)
-        # season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
-        #
-        # episodes = sorted(list(collector.episodes(season_link)))
-        # assert len(episodes) >= episode, 'episode {} could not be found'.format(episode)
-        # episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
-        #
-        # providers = filter(lambda x: not blacklist or x[0] not in blacklist,
-        #     filter(lambda x: not whitelist or x[0] in whitelist,
-        #         collector.providers(episode_link)
-        #     )
-        # )
-        #
-        data.print_table(sorted(providers))
+        data.print_table(providers)
     except AssertionError as e:
         logger.error(e)
 
@@ -123,30 +108,30 @@ def next(collector, whitelist, blacklist, series):
         assert store is not None, 'series {} not found in storage'.format(series)
 
         season = store.season
-        episode = store.episode
+        episode = store.episode + 1
+
+        logger.info('looking for s{0}e{1}'.format(season, episode))
 
         cfg = config.read()
 
         whitelist = set(whitelist).union(set(cfg.get('whitelist') or []))
         blacklist = set(blacklist).union(set(cfg.get('blacklist') or []))
 
-        series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
+        providers = sorted(collector.providers(series, season, episode, whitelist, blacklist))
 
-        seasons = sorted(list(collector.seasons(series_link)))
-        assert len(seasons) >= season, 'season {} could not be found'.format(season)
-        season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
+        assert len(providers) > 0, 'no providers found with current settings'
 
-        episodes = sorted(list(collector.episodes(season_link)))
-        assert len(episodes) >= episode, 'episode {} could not be found'.format(episode)
-        episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
+        print('\n')
+        data.print_table(providers)
+        print('\n')
 
-        providers = filter(lambda x: not blacklist or x[0] not in blacklist,
-            filter(lambda x: not whitelist or x[0] in whitelist,
-                collector.providers(episode_link)
-            )
-        )
+        try:
+            input('press ENTER to store this s{}e{} as last episode or CTRL+C to abort\n'.format(season, episode))
 
-        data.print_table(sorted(providers))
+            storage.store(series, season, episode)
+        except KeyboardInterrupt:
+            print('exiting without storing episode')
+            return 137
     except AssertionError as e:
         logger.error(e)
 
