@@ -11,7 +11,7 @@
 
 import importlib, sys, os, logging, pkgutil, click
 
-from . import collectors, user, data
+from . import collectors, user, data, config
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +21,19 @@ valid_collectors = [ foo for _, foo, _ in pkgutil.iter_modules([os.path.dirname(
 valid_formats    = data.table_formats
 
 @click.group(context_settings={'help_option_names': ['-h', '--help']})
+@click.option('-c', '--cfg', type=click.Path(dir_okay=False))
 @click.option('-p', '--collector', default='watchseries', type=click.Choice(valid_collectors))
-@click.option('-f', '--format', default='simple', type=click.Choice(valid_formats))
+@click.option('-f', '--format', type=click.Choice(valid_formats))
 @click.option('-d', '--debug/--no-debug', default=False)
 @click.pass_context
-def main(ctx, collector, format, debug):
+def main(ctx, cfg, collector, format, debug):
     logging.basicConfig(level=logging.DEBUG if debug else logging.WARNING)
 
     module  = importlib.import_module('.collectors.%s' % (collector), package=__package__)
     ctx.obj = getattr(module, collector)()
 
-    data.table_format = format
+    config.path = cfg
+    data.table_format = format or config.read().get('format')
 
 @main.command()
 @click.argument('series')
@@ -84,6 +86,11 @@ def episodes(collector, series, season):
 @pass_collector
 def episode(collector, whitelist, blacklist, series, season, episode):
     try:
+        cfg = config.read()
+
+        whitelist = set(whitelist).union(set(cfg.get('whitelist') or []))
+        blacklist = set(blacklist).union(set(cfg.get('blacklist') or []))
+
         series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
         seasons = sorted(list(collector.seasons(series_link)))
