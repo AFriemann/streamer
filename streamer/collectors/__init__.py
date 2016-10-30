@@ -11,23 +11,21 @@
 
 import abc
 
-class Collector:
-    __metaclass__ = abc.ABCMeta
-
+class Collector(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def search(self, series):
         pass
 
     @abc.abstractmethod
-    def seasons(self, link):
+    def seasons(self, series):
         pass
 
     @abc.abstractmethod
-    def episodes(self, link):
+    def episodes(self, series, season):
         pass
 
     @abc.abstractmethod
-    def providers(self, link):
+    def providers(self, series, season, episode, whitelist, blacklist):
         pass
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4 fenc=utf-8

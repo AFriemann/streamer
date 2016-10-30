@@ -11,7 +11,7 @@
 
 import importlib, sys, os, logging, pkgutil, click
 
-from . import collectors, user, data, config
+from streamer import collectors, user, data, config, storage
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ valid_formats    = data.table_formats
 def main(ctx, cfg, collector, format, debug):
     logging.basicConfig(level=logging.DEBUG if debug else logging.WARNING)
 
-    module  = importlib.import_module('.collectors.%s' % (collector), package=__package__)
+    module  = importlib.import_module('.collectors.{}'.format(collector), package=__package__)
     ctx.obj = getattr(module, collector)()
 
     config.path = cfg
@@ -51,11 +51,9 @@ def search(collector, series):
 @pass_collector
 def seasons(collector, series):
     try:
-        name, link = user.choose_one_of(list(collector.search(series)), enumerate=True)
+        results = collector.seasons(series)
 
-        results = collector.seasons(link)
-
-        data.print_table(list(results))
+        data.print_table(sorted(results))
     except AssertionError as e:
         logger.error(e)
 
@@ -65,13 +63,7 @@ def seasons(collector, series):
 @pass_collector
 def episodes(collector, series, season):
     try:
-        series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
-
-        seasons = sorted(list(collector.seasons(series_link)))
-        assert len(seasons) >= season, 'season %s could not be found' % season
-        season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
-
-        episodes = list(collector.episodes(season_link))
+        episodes = collector.episodes(series, season)
 
         data.print_table(sorted(episodes))
     except AssertionError as e:
@@ -91,14 +83,61 @@ def episode(collector, whitelist, blacklist, series, season, episode):
         whitelist = set(whitelist).union(set(cfg.get('whitelist') or []))
         blacklist = set(blacklist).union(set(cfg.get('blacklist') or []))
 
+        providers = collector.providers(series, season, episode, whitelist, blacklist)
+
+
+        #
+        # series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
+        #
+        # seasons = sorted(list(collector.seasons(series_link)))
+        # assert len(seasons) >= season, 'season {} could not be found'.format(season)
+        # season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
+        #
+        # episodes = sorted(list(collector.episodes(season_link)))
+        # assert len(episodes) >= episode, 'episode {} could not be found'.format(episode)
+        # episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
+        #
+        # providers = filter(lambda x: not blacklist or x[0] not in blacklist,
+        #     filter(lambda x: not whitelist or x[0] in whitelist,
+        #         collector.providers(episode_link)
+        #     )
+        # )
+        #
+        data.print_table(sorted(providers))
+    except AssertionError as e:
+        logger.error(e)
+
+@main.group()
+@click.option('-s', '--storage', type=click.Path(dir_okay=False))
+def watch(storage):
+    pass
+
+@watch.command()
+@click.option('--whitelist', '-w', multiple=True)
+@click.option('--blacklist', '-b', multiple=True)
+@click.argument('series')
+@pass_collector
+def next(collector, whitelist, blacklist, series):
+    try:
+        store = storage.read().get(series)
+        assert store is not None, 'series {} not found in storage'.format(series)
+
+        season = store.season
+        episode = store.episode
+
+        cfg = config.read()
+
+        whitelist = set(whitelist).union(set(cfg.get('whitelist') or []))
+        blacklist = set(blacklist).union(set(cfg.get('blacklist') or []))
+
         series_name, series_link = user.choose_one_of(list(collector.search(series)), enumerate=True)
 
         seasons = sorted(list(collector.seasons(series_link)))
-        assert len(seasons) >= season, 'season %s could not be found' % season
+        assert len(seasons) >= season, 'season {} could not be found'.format(season)
         season_number, season_link = seasons[season - 1] if season > 0 else user.choose_one_of(seasons)
 
         episodes = sorted(list(collector.episodes(season_link)))
-        assert len(episodes) >= episode, 'episode %s could not be found' % episode
+        assert len(episodes) >= episode, 'episode {} could not be found'.format(episode)
         episode_number, episode_name, episode_link = episodes[episode - 1] if episode > 0 else user.choose_one_of(episodes)
 
         providers = filter(lambda x: not blacklist or x[0] not in blacklist,
@@ -112,6 +151,10 @@ def episode(collector, whitelist, blacklist, series, season, episode):
         logger.error(e)
 
 if __name__ == '__main__':
-    exit(main())
+    try:
+        exit(main())
+    except Exception as e:
+        logger.critical(e)
+        exit(1)
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4 fenc=utf-8

@@ -17,19 +17,21 @@ try:
 except ImportError:
     import yaml
 
+class StorageEntry(Model):
+    season = Attribute(int)
+    episode = Attribute(int)
+
 path = None
 
-default = {
-    'format': 'simple',
-}
-
 def read():
-    abspath = os.path.expanduser(path or '~/.config/streamer/config.yaml')
+    abspath = os.path.expanduser(path or '~/.local/share/streamer/storage.yaml')
+
+    stored_series = []
 
     if os.path.isfile(abspath):
         with open(abspath, 'r') as s:
-            default.update(yaml.safe_load(s))
+            return { k: StorageEntry(**v) for k,v in yaml.safe_load(s).items() }
 
-    return default
+    return {}
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4 fenc=utf-8
